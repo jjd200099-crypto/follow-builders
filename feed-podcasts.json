@@ -1,90 +1,57 @@
 {
-  "generatedAt": "2026-03-20T06:57:26.102Z",
+  "generatedAt": "2026-03-20T07:05:42.890Z",
   "lookbackHours": 72,
   "podcasts": [
     {
       "source": "podcast",
-      "name": "Lex Fridman Podcast",
-      "title": "Single-player vs Multi-player video games - Overwatch creator explains | Jeff Kaplan and Lex Fridman",
-      "videoId": "eEFq23Nakc8",
-      "url": "https://youtube.com/watch?v=eEFq23Nakc8",
-      "publishedAt": "2026-03-19T20:00:04+00:00"
+      "name": "Acquired",
+      "title": "How Ferrari got Michael Schumacher an extra edge with custom tires",
+      "videoId": "x1onfZJ-M0g",
+      "url": "https://youtube.com/watch?v=x1onfZJ-M0g",
+      "publishedAt": "2026-03-19T19:53:43+00:00"
     },
     {
       "source": "podcast",
-      "name": "All-In Podcast",
-      "title": "Jensen Huang: Nvidia's Future, Physical AI, Rise of the Agent, Inference Explosion, AI PR Crisis",
-      "videoId": "gwW8GKwHB3I",
-      "url": "https://youtube.com/watch?v=gwW8GKwHB3I",
-      "publishedAt": "2026-03-19T18:27:34+00:00"
+      "name": "Data Driven NYC",
+      "title": "Benedict Evans: OpenAI’s Moat Problem &amp; the Future of Software",
+      "videoId": "jH2ZIUKvazU",
+      "url": "https://youtube.com/watch?v=jH2ZIUKvazU",
+      "publishedAt": "2026-03-19T12:31:08+00:00"
     },
     {
       "source": "podcast",
-      "name": "Lex Fridman Podcast",
-      "title": "Worst video game quest ever created: World of Warcraft's Green Hills of Stranglethorn | Jeff Kaplan",
-      "videoId": "ZB4AuwF66XY",
-      "url": "https://youtube.com/watch?v=ZB4AuwF66XY",
-      "publishedAt": "2026-03-19T16:00:04+00:00"
+      "name": "Data Driven NYC",
+      "title": "The Subagent Communication Crisis #ai #podcast",
+      "videoId": "gIeXnioR0WA",
+      "url": "https://youtube.com/watch?v=gIeXnioR0WA",
+      "publishedAt": "2026-03-18T20:00:38+00:00"
     },
     {
       "source": "podcast",
-      "name": "No Priors",
-      "title": "AI Learned My Email Habits",
-      "videoId": "rJ8qEqQyVoU",
-      "url": "https://youtube.com/watch?v=rJ8qEqQyVoU",
-      "publishedAt": "2026-03-19T14:30:06+00:00"
+      "name": "Data Driven NYC",
+      "title": "The End of Deterministic Software Testing #ai #podcast",
+      "videoId": "pBI3JqOrRNw",
+      "url": "https://youtube.com/watch?v=pBI3JqOrRNw",
+      "publishedAt": "2026-03-18T16:01:31+00:00"
     },
     {
       "source": "podcast",
-      "name": "Lex Fridman Podcast",
-      "title": "The value of hard work: Crazy work hours in game industry | Jeff Kaplan and Lex Fridman",
-      "videoId": "hSp6y3uYbks",
-      "url": "https://youtube.com/watch?v=hSp6y3uYbks",
-      "publishedAt": "2026-03-19T12:00:03+00:00"
+      "name": "Latent Space",
+      "title": "Why Anthropic Thinks AI Should Have Its Own Computer — Felix Rieseberg of Claude Cowork/Code",
+      "videoId": "ZpZ7lFoWaT8",
+      "url": "https://youtube.com/watch?v=ZpZ7lFoWaT8",
+      "publishedAt": "2026-03-17T21:37:33+00:00"
     },
     {
       "source": "podcast",
-      "name": "No Priors",
-      "title": "Why AI Can't Find Your Data",
-      "videoId": "PFnvdPCAnsU",
-      "url": "https://youtube.com/watch?v=PFnvdPCAnsU",
-      "publishedAt": "2026-03-18T15:05:20+00:00"
-    },
-    {
-      "source": "podcast",
-      "name": "All-In Podcast",
-      "title": "John Fetterman: 'I'm the Only Democrat in Congress Saying This'",
-      "videoId": "3ZVqcW6Wwmg",
-      "url": "https://youtube.com/watch?v=3ZVqcW6Wwmg",
-      "publishedAt": "2026-03-18T11:36:21+00:00"
-    },
-    {
-      "source": "podcast",
-      "name": "All-In Podcast",
-      "title": "One of the greatest philanthropic gifts in the history of humanity”: Funding 25M investment accounts",
-      "videoId": "no8n_o8ssg0",
-      "url": "https://youtube.com/watch?v=no8n_o8ssg0",
-      "publishedAt": "2026-03-18T00:52:42+00:00"
-    },
-    {
-      "source": "podcast",
-      "name": "No Priors",
-      "title": "The AI Race Is Winner-Take-All",
-      "videoId": "E1bN20MFKIU",
-      "url": "https://youtube.com/watch?v=E1bN20MFKIU",
-      "publishedAt": "2026-03-17T19:41:48+00:00"
+      "name": "Training Data",
+      "title": "Greetings, Earthlings: Philip Johnston of Starcloud on Data Centers in Space",
+      "videoId": "FKHENV75b9Q",
+      "url": "https://youtube.com/watch?v=FKHENV75b9Q",
+      "publishedAt": "2026-03-17T12:00:24+00:00"
     }
   ],
   "stats": {
-    "podcastEpisodes": 9
-  },
-  "errors": [
-    "RSS: Failed to fetch Latent Space: HTTP 404",
-    "RSS: Failed to fetch Training Data: HTTP 404",
-    "RSS: Failed to fetch Unsupervised Learning: HTTP 404",
-    "RSS: Failed to fetch Data Driven NYC: HTTP 404",
-    "RSS: Failed to fetch 20VC: HTTP 404",
-    "RSS: Failed to fetch Acquired: HTTP 404",
-    "RSS: Failed to fetch Invest Like the Best: HTTP 404"
-  ]
+    "podcastEpisodes": 6
+  }
 }
