@@ -9,7 +9,7 @@ on:
       mode:
         description: 'What to fetch'
         required: false
-        default: 'all'
+        default: 'podcasts-only'
         type: choice
         options:
           - all
@@ -37,11 +37,7 @@ jobs:
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
           SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" != "all" ]; then
-            cd scripts && node generate-feed.js --${{ inputs.mode }}
-          else
-            cd scripts && node generate-feed.js
-          fi
+          cd scripts && node generate-feed.js --podcasts-only
 
       - name: Commit and push feeds
         run: |
