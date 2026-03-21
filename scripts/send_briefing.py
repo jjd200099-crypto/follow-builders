@@ -1,71 +1,92 @@
 #!/usr/bin/env python3
 """
-Generate a daily podcast briefing from feed-podcasts.json and send via email.
-Uses Outlook SMTP to send.
-
-Env vars needed:
-  OUTLOOK_EMAIL    - sender email (also recipient)
-  OUTLOOK_PASSWORD - app password (not your regular password)
-  FEED_URL         - URL to raw feed-podcasts.json on GitHub
+Generate a daily podcast briefing from feed-podcasts.json and send via Resend.
+Env vars: RESEND_API_KEY, RECIPIENT_EMAIL
 """
 
 import json
 import os
-import smtplib
+import subprocess
 import sys
-import urllib.request
 from datetime import datetime, timedelta, timezone
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
-FEED_URL = os.environ.get(
-    "FEED_URL",
-    "https://raw.githubusercontent.com/jjd200099-crypto/follow-builders/main/feed-podcasts.json",
-)
-OUTLOOK_EMAIL = os.environ.get("OUTLOOK_EMAIL", "")
-OUTLOOK_PASSWORD = os.environ.get("OUTLOOK_PASSWORD", "")
-RECIPIENT = os.environ.get("RECIPIENT", OUTLOOK_EMAIL)
-
-SMTP_SERVER = "smtp-mail.outlook.com"
-SMTP_PORT = 587
+FEED_URL = "https://raw.githubusercontent.com/jjd200099-crypto/follow-builders/main/feed-podcasts.json"
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RECIPIENT = os.environ.get("RECIPIENT_EMAIL", "")
 
 
 def fetch_feed():
-    req = urllib.request.Request(FEED_URL)
-    with urllib.request.urlopen(req) as resp:
+    req = Request(FEED_URL)
+    with urlopen(req) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def generate_briefing(feed):
+def send_email(subject, text_body):
+    data = json.dumps({
+        "from": "Follow Builders <onboarding@resend.dev>",
+        "to": RECIPIENT,
+        "subject": subject,
+        "text": text_body,
+    }).encode()
+
+    req = Request(
+        "https://api.resend.com/emails",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urlopen(req) as resp:
+            result = json.loads(resp.read())
+            print(f"Email sent! ID: {result.get('id')}", file=sys.stderr)
+    except HTTPError as e:
+        print(f"Email error {e.code}: {e.read().decode()}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    if not RESEND_API_KEY or not RECIPIENT:
+        print("RESEND_API_KEY or RECIPIENT_EMAIL not set", file=sys.stderr)
+        sys.exit(0)
+
+    print("Fetching feed...", file=sys.stderr)
+    feed = fetch_feed()
     podcasts = feed.get("podcasts", [])
-    if not podcasts:
-        return None, None
 
     # Filter last 24 hours
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     recent = []
     for ep in podcasts:
         pub = ep.get("publishedAt", "")
-        if pub:
-            try:
-                dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
-                if dt >= cutoff:
-                    recent.append(ep)
-            except ValueError:
+        if not pub:
+            continue
+        try:
+            dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+            if dt >= cutoff:
                 recent.append(ep)
+        except ValueError:
+            pass
 
     if not recent:
-        return None, None
+        print("No new episodes in the past 24 hours", file=sys.stderr)
+        sys.exit(0)
+
+    # Sort newest first
+    recent.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
 
     today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
-    subject = f"Podcast Daily Briefing - {today} ({len(recent)} new episodes)"
+    separator = "─" * 40
 
-    # Build HTML email
-    html_parts = [
-        "<html><body>",
-        f"<h2>Podcast Daily Briefing - {today}</h2>",
-        f"<p>Found <strong>{len(recent)}</strong> new episodes in the past 24 hours.</p>",
-        "<hr>",
+    lines = [
+        "=" * 64,
+        f"  🎙 Podcast Daily Briefing — {today}",
+        f"  过去 24 小时共 {len(recent)} 期新节目",
+        "=" * 64,
+        "",
     ]
 
     for i, ep in enumerate(recent, 1):
@@ -74,76 +95,23 @@ def generate_briefing(feed):
         url = ep.get("url", "")
         pub = ep.get("publishedAt", "")[:16].replace("T", " ")
 
-        html_parts.append(f"<h3>{i}. [{name}] {title}</h3>")
-        html_parts.append(f"<p><em>{pub}</em></p>")
+        lines.append(f"{i}. [{name}] {title}")
+        lines.append(f"   {pub}")
         if url:
-            html_parts.append(f'<p><a href="{url}">Watch on YouTube</a></p>')
+            lines.append(f"   {url}")
+        lines.append("")
+        lines.append(separator)
+        lines.append("")
 
-        # Include transcript snippet if available
-        transcript = ep.get("transcript", "")
-        if transcript:
-            snippet = transcript[:500] + "..." if len(transcript) > 500 else transcript
-            html_parts.append(f"<blockquote>{snippet}</blockquote>")
+    lines.append("=" * 64)
+    lines.append("  Generated by Follow Builders")
+    lines.append("=" * 64)
 
-        html_parts.append("<hr>")
+    subject = f"🎙 Podcast Daily Briefing — {today} ({len(recent)} new episodes)"
+    body = "\n".join(lines)
 
-    html_parts.append(
-        "<p><em>Generated by Follow Builders</em></p>"
-    )
-    html_parts.append("</body></html>")
-
-    # Plain text version
-    text_parts = [f"Podcast Daily Briefing - {today}", f"{len(recent)} new episodes", ""]
-    for i, ep in enumerate(recent, 1):
-        name = ep.get("name", "Unknown")
-        title = ep.get("title", "Untitled")
-        url = ep.get("url", "")
-        pub = ep.get("publishedAt", "")[:16].replace("T", " ")
-        text_parts.append(f"{i}. [{name}] {title}")
-        text_parts.append(f"   {pub}")
-        if url:
-            text_parts.append(f"   {url}")
-        text_parts.append("")
-
-    return subject, ("\n".join(text_parts), "\n".join(html_parts))
-
-
-def send_email(subject, text_body, html_body):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = OUTLOOK_EMAIL
-    msg["To"] = RECIPIENT
-
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
-
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(OUTLOOK_EMAIL, OUTLOOK_PASSWORD)
-        server.sendmail(OUTLOOK_EMAIL, RECIPIENT, msg.as_string())
-
-    print(f"Email sent to {RECIPIENT}", file=sys.stderr)
-
-
-def main():
-    if not OUTLOOK_EMAIL or not OUTLOOK_PASSWORD:
-        print("OUTLOOK_EMAIL or OUTLOOK_PASSWORD not set, skipping email", file=sys.stderr)
-        sys.exit(0)
-
-    print("Fetching feed...", file=sys.stderr)
-    feed = fetch_feed()
-
-    print("Generating briefing...", file=sys.stderr)
-    subject, bodies = generate_briefing(feed)
-
-    if not subject:
-        print("No new episodes in the past 24 hours, skipping email", file=sys.stderr)
-        sys.exit(0)
-
-    text_body, html_body = bodies
     print(f"Sending: {subject}", file=sys.stderr)
-    send_email(subject, text_body, html_body)
-    print("Done!", file=sys.stderr)
+    send_email(subject, body)
 
 
 if __name__ == "__main__":
