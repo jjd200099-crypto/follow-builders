@@ -449,7 +449,7 @@ def main():
         sys.exit(0)
 
     today = datetime.now(BJT).strftime("%Y-%m-%d")
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=72)
 
     # 1. Podcasts
     print("Fetching podcast feed...", file=sys.stderr)
