@@ -1,4 +1,4 @@
-name: Daily Briefing
+name: 每日简报
 
 on:
   schedule:
@@ -16,8 +16,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Send briefing email
+      - name: Send daily briefing
         env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python scripts/send_briefing.py
