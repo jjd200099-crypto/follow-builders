@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-每日简报 v6 — 6-section Daily Briefing
-1. 💰 融资头条   2. 🚀 技术突破   3. 🏛 VC动态 (HTML scraping)
-4. 📡 科技媒体   5. 🎙 播客追踪   6. 📰 行业资讯
+每日简报 v8 — 6-section Daily Briefing
+VC blogs via WP API + Sitemap + Google News RSS fallback
 """
 
 import json
@@ -50,22 +49,38 @@ MEDIA_SOURCES = [
     {"name": "Wired AI", "url": "https://www.wired.com/feed/tag/ai/latest/rss"},
 ]
 
-# Top VC blog pages to scrape (HTML, not RSS)
-VC_SCRAPE_SOURCES = [
-    {"name": "a16z", "url": "https://a16z.com/blog/"},
-    {"name": "Sequoia Capital", "url": "https://www.sequoiacap.com/articles/"},
-    {"name": "Greylock Partners", "url": "https://greylock.com/greymatter/"},
-    {"name": "Benchmark (Above the Crowd)", "url": "https://abovethecrowd.com/"},
-    {"name": "Lightspeed", "url": "https://lsvp.com/blog/"},
-    {"name": "Bessemer Venture Partners", "url": "https://www.bvp.com/atlas"},
-    {"name": "Accel", "url": "https://www.accel.com/noteworthy"},
-    {"name": "Kleiner Perkins", "url": "https://www.kleinerperkins.com/perspectives"},
-    {"name": "General Catalyst", "url": "https://www.generalcatalyst.com/perspectives"},
-    {"name": "Index Ventures", "url": "https://www.indexventures.com/perspectives"},
-    {"name": "Founders Fund", "url": "https://foundersfund.com/the-future/"},
-    {"name": "Y Combinator", "url": "https://www.ycombinator.com/blog/"},
-    {"name": "Union Square Ventures", "url": "https://www.usv.com/writing/"},
-    {"name": "Felicis Ventures", "url": "https://www.felicis.com/insight"},
+# ── VC Sources: 3 tiers ───────────────────────────────────────────────────
+# Tier 1: WordPress JSON API (reliable, structured)
+VC_WP_API = [
+    {"name": "Greylock Partners", "api": "https://greylock.com/wp-json/wp/v2/posts?per_page=5"},
+    {"name": "Lightspeed", "api": "https://lsvp.com/wp-json/wp/v2/posts?per_page=5"},
+    {"name": "Kleiner Perkins", "api": "https://www.kleinerperkins.com/wp-json/wp/v2/posts?per_page=5"},
+    {"name": "Union Square Ventures", "api": "https://www.usv.com/wp-json/wp/v2/posts?per_page=5"},
+    {"name": "Founders Fund", "api": "https://foundersfund.com/wp-json/wp/v2/posts?per_page=5"},
+    {"name": "Above the Crowd (Benchmark)", "api": "https://abovethecrowd.com/wp-json/wp/v2/posts?per_page=5"},
+]
+
+# Tier 2: Sitemap parsing (has dates)
+VC_SITEMAP = [
+    {"name": "a16z", "sitemap": "https://a16z.com/post-sitemap3.xml", "base": "https://a16z.com"},
+    {"name": "Bessemer Venture Partners", "sitemap": "https://www.bvp.com/post-sitemap.xml", "base": "https://www.bvp.com"},
+]
+
+# Tier 3: RSS feed
+VC_RSS = [
+    {"name": "Y Combinator", "url": "https://www.ycombinator.com/blog/rss/"},
+]
+
+# Tier 4: Google News RSS (universal fallback for VCs without APIs)
+VC_GOOGLE_NEWS = [
+    {"name": "a16z / Andreessen Horowitz", "query": '"andreessen horowitz" OR "a16z"'},
+    {"name": "Sequoia Capital", "query": '"sequoia capital"'},
+    {"name": "Accel", "query": '"accel partners" OR "accel ventures"'},
+    {"name": "General Catalyst", "query": '"general catalyst"'},
+    {"name": "Index Ventures", "query": '"index ventures"'},
+    {"name": "Felicis Ventures", "query": '"felicis ventures"'},
+    {"name": "Khosla Ventures", "query": '"khosla ventures"'},
+    {"name": "Tiger Global", "query": '"tiger global"'},
 ]
 
 BLOG_SOURCES = [
@@ -83,25 +98,17 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 RECIPIENTS = [e.strip() for e in os.environ.get("RECIPIENT_EMAIL", "jjd200099@gmail.com").split(",") if e.strip()]
 BJT = timezone(timedelta(hours=8))
 
-# ── HTTP ────────────────────────────────────────────────────────────────────
-
 BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+# ── HTTP Helpers ────────────────────────────────────────────────────────────
 
 def http_get(url, timeout=15):
     req = Request(url, headers={
         "User-Agent": BROWSER_UA,
-        "Accept": "text/html, application/rss+xml, application/xml, text/xml, */*",
+        "Accept": "text/html, application/rss+xml, application/xml, application/json, */*",
     })
     with urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
-
-def fetch_podcast_feed():
-    try:
-        data = json.loads(http_get(PODCAST_FEED_URL))
-        return data.get("podcasts", [])
-    except Exception as e:
-        print(f"[WARN] Podcast feed error: {e}", file=sys.stderr)
-        return []
 
 def ensure_aware(dt):
     if dt is not None and dt.tzinfo is None:
@@ -116,14 +123,9 @@ def parse_rss_date(date_str):
         return ensure_aware(datetime.fromisoformat(date_str.replace("Z", "+00:00")))
     except ValueError:
         pass
-    for fmt in [
-        "%a, %d %b %Y %H:%M:%S %z",
-        "%a, %d %b %Y %H:%M:%S %Z",
-        "%a, %d %b %Y %H:%M:%S",
-        "%d %b %Y %H:%M:%S %z",
-        "%d %b %Y %H:%M:%S",
-        "%Y-%m-%dT%H:%M:%S",
-    ]:
+    for fmt in ["%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %Z",
+                "%a, %d %b %Y %H:%M:%S", "%d %b %Y %H:%M:%S %z",
+                "%d %b %Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S"]:
         try:
             return ensure_aware(datetime.strptime(date_str, fmt))
         except ValueError:
@@ -135,6 +137,8 @@ def strip_html(text):
         return ""
     text = re.sub(r"<[^>]+>", "", text)
     return unescape(text).strip()
+
+# ── RSS Fetching ────────────────────────────────────────────────────────────
 
 def fetch_rss_entries(sources, cutoff):
     entries = []
@@ -153,10 +157,8 @@ def fetch_rss_entries(sources, cutoff):
                     dt = parse_rss_date(pub_date)
                     if dt and dt >= cutoff:
                         entries.append({
-                            "source": source["name"],
-                            "title": strip_html(title),
-                            "url": (link or "").strip(),
-                            "publishedAt": dt.isoformat(),
+                            "source": source["name"], "title": strip_html(title),
+                            "url": (link or "").strip(), "publishedAt": dt.isoformat(),
                             "snippet": strip_html(desc)[:800],
                         })
                 continue
@@ -179,10 +181,8 @@ def fetch_rss_entries(sources, cutoff):
                 dt = parse_rss_date(pub)
                 if dt and dt >= cutoff:
                     entries.append({
-                        "source": source["name"],
-                        "title": strip_html(title),
-                        "url": (link or "").strip(),
-                        "publishedAt": dt.isoformat(),
+                        "source": source["name"], "title": strip_html(title),
+                        "url": (link or "").strip(), "publishedAt": dt.isoformat(),
                         "snippet": strip_html(summary_el)[:800],
                     })
         except Exception as e:
@@ -190,67 +190,125 @@ def fetch_rss_entries(sources, cutoff):
     entries.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
     return entries
 
+def fetch_podcast_feed():
+    try:
+        data = json.loads(http_get(PODCAST_FEED_URL))
+        return data.get("podcasts", [])
+    except Exception as e:
+        print(f"[WARN] Podcast feed error: {e}", file=sys.stderr)
+        return []
 
-# ── VC Blog Scraping ───────────────────────────────────────────────────────
+# ── VC Blog Fetching (3-tier) ──────────────────────────────────────────────
 
-def scrape_vc_blogs(lookback_hours):
-    """Scrape VC blog pages and use Gemini to extract recent posts."""
-    today = datetime.now(BJT).strftime("%Y-%m-%d")
-    all_html = {}
-    for vc in VC_SCRAPE_SOURCES:
+def fetch_vc_wp_api(cutoff):
+    """Tier 1: Fetch from WordPress JSON API."""
+    entries = []
+    for vc in VC_WP_API:
         try:
-            html = http_get(vc["url"], timeout=20)
-            # Trim HTML: remove scripts/styles, keep text + links, limit size
-            html = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.IGNORECASE)
-            html = re.sub(r"<style[\s\S]*?</style>", "", html, flags=re.IGNORECASE)
-            html = re.sub(r"<nav[\s\S]*?</nav>", "", html, flags=re.IGNORECASE)
-            html = re.sub(r"<footer[\s\S]*?</footer>", "", html, flags=re.IGNORECASE)
-            # Keep first 8000 chars of cleaned HTML (enough for recent posts)
-            all_html[vc["name"]] = html[:8000]
-            print(f"  Scraped {vc['name']} ({len(html)} chars)", file=sys.stderr)
+            data = json.loads(http_get(vc["api"]))
+            for post in data:
+                pub = post.get("date_gmt", post.get("date", ""))
+                dt = parse_rss_date(pub)
+                if dt and dt >= cutoff:
+                    title = strip_html(post.get("title", {}).get("rendered", "Untitled"))
+                    link = post.get("link", "")
+                    excerpt = strip_html(post.get("excerpt", {}).get("rendered", ""))
+                    content = strip_html(post.get("content", {}).get("rendered", ""))
+                    entries.append({
+                        "source": vc["name"], "title": title,
+                        "url": link, "publishedAt": dt.isoformat(),
+                        "snippet": (excerpt or content)[:800],
+                    })
+            print(f"  WP API: {vc['name']} OK", file=sys.stderr)
         except Exception as e:
-            print(f"[WARN] Scrape error {vc['name']}: {e}", file=sys.stderr)
+            print(f"[WARN] WP API {vc['name']}: {e}", file=sys.stderr)
+    return entries
 
-    if not all_html:
-        return "暂无 VC 博客更新"
+def fetch_vc_sitemap(cutoff):
+    """Tier 2: Parse sitemap.xml for recent posts."""
+    entries = []
+    for vc in VC_SITEMAP:
+        try:
+            xml_text = http_get(vc["sitemap"])
+            root = ET.fromstring(xml_text)
+            ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+            urls = root.findall(".//sm:url", ns)
+            if not urls:
+                urls = root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}url")
+            count = 0
+            for url_el in urls:
+                loc = url_el.findtext("{http://www.sitemaps.org/schemas/sitemap/0.9}loc", "")
+                lastmod = url_el.findtext("{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod", "")
+                dt = parse_rss_date(lastmod)
+                if dt and dt >= cutoff and loc:
+                    # Extract title from URL slug
+                    slug = loc.rstrip("/").split("/")[-1]
+                    title = slug.replace("-", " ").title()
+                    entries.append({
+                        "source": vc["name"], "title": title,
+                        "url": loc, "publishedAt": dt.isoformat(),
+                        "snippet": "",
+                    })
+                    count += 1
+                    if count >= 5:
+                        break
+            print(f"  Sitemap: {vc['name']} → {count} posts", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Sitemap {vc['name']}: {e}", file=sys.stderr)
+    return entries
 
-    # Build prompt with all scraped HTML
-    pages_text = []
-    for name, html in all_html.items():
-        vc_info = next((v for v in VC_SCRAPE_SOURCES if v["name"] == name), {})
-        pages_text.append(
-            f"=== {name} ===\n"
-            f"URL: {vc_info.get('url', '')}\n"
-            f"HTML内容:\n{html[:6000]}\n"
-        )
+def fetch_vc_google_news(cutoff):
+    """Tier 4: Google News RSS search for VCs without APIs."""
+    entries = []
+    for vc in VC_GOOGLE_NEWS:
+        try:
+            from urllib.parse import quote
+            query = quote(vc["query"])
+            rss_url = f"https://news.google.com/rss/search?q={query}+when:3d&hl=en-US&gl=US&ceid=US:en"
+            xml_text = http_get(rss_url)
+            root = ET.fromstring(xml_text)
+            count = 0
+            for item in root.findall(".//item")[:5]:
+                title = strip_html(item.findtext("title", ""))
+                link = item.findtext("link", "")
+                pub_date = item.findtext("pubDate", "")
+                dt = parse_rss_date(pub_date)
+                if dt and dt >= cutoff:
+                    entries.append({
+                        "source": vc["name"], "title": title,
+                        "url": link, "publishedAt": dt.isoformat(),
+                        "snippet": strip_html(item.findtext("description", ""))[:500],
+                    })
+                    count += 1
+            print(f"  Google News: {vc['name']} → {count} articles", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Google News {vc['name']}: {e}", file=sys.stderr)
+    return entries
 
-    prompt = f"""你是一位资深的科技投资领域分析师。今天是 {today}。
+def fetch_all_vc_content(cutoff):
+    """Combine all VC content from all tiers."""
+    print("  Tier 1: WordPress API...", file=sys.stderr)
+    wp = fetch_vc_wp_api(cutoff)
+    print("  Tier 2: Sitemap...", file=sys.stderr)
+    sitemap = fetch_vc_sitemap(cutoff)
+    print("  Tier 3: RSS...", file=sys.stderr)
+    rss = fetch_rss_entries(VC_RSS, cutoff)
+    for e in rss:
+        e["source"] = "Y Combinator"  # ensure source name
+    print("  Tier 4: Google News...", file=sys.stderr)
+    gnews = fetch_vc_google_news(cutoff)
 
-我从以下湾区顶级 VC 的官网博客页面抓取了 HTML 内容。请从中提取过去 {lookback_hours} 小时内发布的新文章。
-
-对于每篇文章，请按以下格式输出：
-
-[VC名称] 文章标题
-简介：1-2句话概述文章内容
-核心观点：
-• 观点1
-• 观点2
-• 观点3（如有）
-涉及公司/领域：提到的公司名或投资领域
-原文：完整URL（从HTML中的<a>标签提取）
-
-注意：
-- 只输出过去 {lookback_hours} 小时内的新文章（根据页面上显示的日期判断）
-- 如果某个 VC 没有新文章，跳过它
-- 如果无法确定发布日期，但文章出现在页面最顶部，可以包含它（注明"日期未知，疑似近期发布"）
-- 如果所有 VC 都没有新内容，输出"暂无 VC 博客更新"
-- 不要编造不存在的文章
-
-以下是抓取到的页面内容：
-
-{chr(10).join(pages_text)}"""
-
-    return gemini_call(prompt, max_tokens=6144)
+    all_entries = wp + sitemap + rss + gnews
+    # Deduplicate by title similarity
+    seen_titles = set()
+    unique = []
+    for e in all_entries:
+        key = e["title"].lower()[:50]
+        if key not in seen_titles:
+            seen_titles.add(key)
+            unique.append(e)
+    unique.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
+    return unique
 
 
 # ── Gemini AI ──────────────────────────────────────────────────────────────
@@ -272,105 +330,110 @@ def gemini_call(prompt, max_tokens=8192):
         print(f"[WARN] Gemini error: {e}", file=sys.stderr)
         return ""
 
-
-def extract_funding_deals(funding_entries):
-    if not funding_entries:
+def extract_funding_deals(entries):
+    if not entries:
         return "暂无融资交易"
-    items_text = []
-    for i, item in enumerate(funding_entries):
-        items_text.append(
-            f"[{i}] 来源: {item['source']}\n"
-            f"    标题: {item['title']}\n"
-            f"    内容: {item.get('snippet', '')}\n"
-            f"    链接: {item['url']}\n"
-            f"    发布时间: {item['publishedAt'][:16].replace('T', ' ')}"
-        )
-    prompt = f"""你是一位资深的AI行业投融资分析师。请从以下新闻中筛选出所有与AI/科技相关的融资交易（Series A/B/C/D、种子轮、IPO、收购等），并按以下格式输出每笔交易。
-
-如果某条新闻不是融资交易（比如是行业分析、观点文章、产品发布），请跳过它。
+    items = []
+    for i, e in enumerate(entries):
+        items.append(f"[{i}] 来源: {e['source']}\n    标题: {e['title']}\n    内容: {e.get('snippet','')}\n    链接: {e['url']}\n    时间: {e['publishedAt'][:16].replace('T',' ')}")
+    prompt = f"""你是一位资深的AI行业投融资分析师。请从以下新闻中筛选出所有与AI/科技相关的融资交易（Series A/B/C/D、种子轮、IPO、收购等），并按以下格式输出。跳过非融资新闻。
 
 新闻列表：
-{chr(10).join(items_text)}
+{chr(10).join(items)}
 
-请严格按以下格式输出每笔交易（每笔交易之间用空行分隔）：
+格式（每笔交易之间空行分隔）：
 
 公司名 - $金额 - 轮次
-公司简介：一句话描述公司做什么
+公司简介：一句话描述
 业务亮点：
 • 亮点1
 • 亮点2
 • 亮点3（如有）
-融资用途：一句话说明资金用途
-领投方：投资机构名称（如文中未提及，写"未披露"）
-发布时间：从原文推断的时间
+融资用途：一句话
+领投方：机构名（未提及写"未披露"）
+发布时间：从原文推断
 原文：链接URL
 
-如果没有找到任何融资交易，请输出"暂无融资交易"。不要输出任何其他解释文字。"""
-    return gemini_call(prompt, max_tokens=6144)
+没有则输出"暂无融资交易"。"""
+    return gemini_call(prompt, 6144)
 
-
-def extract_tech_breakthroughs(tech_entries):
-    if not tech_entries:
+def extract_tech_breakthroughs(entries):
+    if not entries:
         return "暂无重大技术突破"
-    items_text = []
-    for i, item in enumerate(tech_entries):
-        items_text.append(
-            f"[{i}] 来源: {item['source']}\n"
-            f"    标题: {item['title']}\n"
-            f"    内容: {item.get('snippet', '')}\n"
-            f"    链接: {item['url']}\n"
-            f"    发布时间: {item['publishedAt'][:16].replace('T', ' ')}"
-        )
-    prompt = f"""你是一位资深的AI技术分析师。请从以下新闻中筛选出重要的AI技术突破、新模型发布、重大产品更新，并按以下格式输出。
-
-跳过一般性的行业评论、融资新闻或非技术内容。
+    items = []
+    for i, e in enumerate(entries):
+        items.append(f"[{i}] 来源: {e['source']}\n    标题: {e['title']}\n    内容: {e.get('snippet','')}\n    链接: {e['url']}\n    时间: {e['publishedAt'][:16].replace('T',' ')}")
+    prompt = f"""你是一位资深的AI技术分析师。请从以下新闻中筛选出重要的AI技术突破、新模型发布、重大产品更新。跳过融资和一般评论。
 
 新闻列表：
-{chr(10).join(items_text)}
+{chr(10).join(items)}
 
-请严格按以下格式输出每条技术突破（每条之间用空行分隔）：
+格式（每条之间空行分隔）：
 
 产品/模型名称
 简介：一句话概述
-核心突破：这项技术为什么重要
+核心突破：为什么重要
 关键特性：
 • 特性1
 • 特性2
 • 特性3（如有）
-发布时间：从原文推断的时间
+发布时间：从原文推断
 原文：链接URL
 
-如果没有找到重要技术突破，请输出"暂无重大技术突破"。不要输出任何其他解释文字。"""
-    return gemini_call(prompt, max_tokens=6144)
+没有则输出"暂无重大技术突破"。"""
+    return gemini_call(prompt, 6144)
 
+def summarize_vc_content(entries):
+    """Generate structured VC update summaries."""
+    if not entries:
+        return "暂无 VC 动态更新"
+    items = []
+    for i, e in enumerate(entries):
+        items.append(f"[{i}] VC: {e['source']}\n    标题: {e['title']}\n    内容: {e.get('snippet','')[:500]}\n    链接: {e['url']}\n    时间: {e['publishedAt'][:16].replace('T',' ')}")
+    prompt = f"""你是一位资深的科技投资领域分析师。请为以下湾区顶级VC的最新动态各写一段详细的中文摘要。
+
+内容列表：
+{chr(10).join(items)}
+
+对于每条内容，请按以下格式输出：
+
+[VC名称] 文章/新闻标题
+简介：1-2句话概述
+核心观点：
+• 观点1
+• 观点2
+• 观点3（如有）
+涉及公司/领域：提到的公司或投资领域
+原文：链接URL
+
+请确保：
+- 如果标题是英文，翻译成中文后再分析
+- 如果内容是关于投资交易，说明金额、轮次、被投公司
+- 如果是观点文章，提炼核心论点
+- 跳过明显过时或无实质内容的条目"""
+    return gemini_call(prompt, 6144)
 
 def summarize_items(entries, section_desc):
     if not entries:
         return {}
-    items_text = []
-    for i, entry in enumerate(entries):
-        name = entry.get("source", entry.get("name", "Unknown"))
-        title = entry.get("title", "")
-        snippet = entry.get("snippet", entry.get("transcript", ""))
-        items_text.append(
-            f"{i+1}. [{name}] {title}\n"
-            f"   内容片段: {str(snippet)[:500] if snippet else '无'}"
-        )
+    items = []
+    for i, e in enumerate(entries):
+        name = e.get("source", e.get("name", "Unknown"))
+        snippet = e.get("snippet", e.get("transcript", ""))
+        items.append(f"{i+1}. [{name}] {e.get('title','')}\n   内容片段: {str(snippet)[:500] if snippet else '无'}")
     prompt = (
         f"你是一位资深的科技投资领域分析师。请为以下{section_desc}各写一段详细的中文摘要（4-6句话）。\n"
         f"摘要需包括：核心论点、关键数据或案例、对投资者/创业者/从业者的启示。\n"
         f"如果标题是英文，请翻译后再总结。\n\n"
-        + "\n".join(items_text)
-        + "\n\n请严格按编号逐条给出摘要，格式如下：\n1. 摘要内容\n2. 摘要内容\n..."
+        + "\n".join(items) + "\n\n请严格按编号给出摘要：\n1. 摘要\n2. 摘要\n..."
     )
-    text = gemini_call(prompt, max_tokens=6144)
+    text = gemini_call(prompt, 6144)
     if not text:
         return {}
     summaries = {}
     for m in re.finditer(r"(\d+)[.、]\s*(.+?)(?=\n\d+[.、]|\Z)", text, re.DOTALL):
         summaries[int(m.group(1)) - 1] = m.group(2).strip()
     return summaries
-
 
 # ── Email ──────────────────────────────────────────────────────────────────
 
@@ -389,58 +452,43 @@ def format_item(idx, entry, summary=None):
     lines.append("")
     return lines
 
-
 def format_briefing(funding_text, tech_text, vc_text,
                     media_entries, media_summaries,
                     podcasts, podcast_summaries, blogs, blog_summaries):
     today = datetime.now(BJT).strftime("%Y-%m-%d")
     sep = "─" * 52
     double_sep = "═" * 60
+    lines = [double_sep, f"  📋 每日简报 — {today}", double_sep, ""]
 
-    lines = [
-        double_sep,
-        f"  📋 每日简报 — {today}",
-        double_sep,
-        "",
-    ]
-
-    # 1. Funding
     lines.append("💰 融资头条")
     lines.append(sep)
     lines.append("")
-    lines.append(funding_text if funding_text else "  暂无融资交易")
-    lines.append("")
-    lines.append("")
+    lines.append(funding_text or "  暂无融资交易")
+    lines.extend(["", ""])
 
-    # 2. Tech
     lines.append("🚀 技术突破")
     lines.append(sep)
     lines.append("")
-    lines.append(tech_text if tech_text else "  暂无重大技术突破")
-    lines.append("")
-    lines.append("")
+    lines.append(tech_text or "  暂无重大技术突破")
+    lines.extend(["", ""])
 
-    # 3. VC (scraped from HTML)
     lines.append("🏛 湾区顶级 VC 动态")
     lines.append(sep)
     lines.append("")
-    lines.append(vc_text if vc_text else "  暂无 VC 博客更新")
-    lines.append("")
-    lines.append("")
+    lines.append(vc_text or "  暂无 VC 动态更新")
+    lines.extend(["", ""])
 
-    # 4. Media
     lines.append(f"📡 科技媒体更新（{len(media_entries)} 篇）")
     lines.append(sep)
     lines.append("")
     if media_entries:
-        for i, entry in enumerate(media_entries):
-            lines.extend(format_item(i + 1, entry, media_summaries.get(i)))
+        for i, e in enumerate(media_entries):
+            lines.extend(format_item(i + 1, e, media_summaries.get(i)))
     else:
         lines.append("  今日暂无媒体更新")
         lines.append("")
     lines.append("")
 
-    # 5. Podcasts
     lines.append(f"🎙 播客追踪（{len(podcasts)} 期新节目）")
     lines.append(sep)
     lines.append("")
@@ -452,24 +500,19 @@ def format_briefing(funding_text, tech_text, vc_text,
         lines.append("")
     lines.append("")
 
-    # 6. Blogs
     lines.append(f"📰 行业资讯（{len(blogs)} 篇新文章）")
     lines.append(sep)
     lines.append("")
     if blogs:
-        for i, entry in enumerate(blogs):
-            lines.extend(format_item(i + 1, entry, blog_summaries.get(i)))
+        for i, e in enumerate(blogs):
+            lines.extend(format_item(i + 1, e, blog_summaries.get(i)))
     else:
         lines.append("  今日暂无新文章")
         lines.append("")
     lines.append("")
 
-    lines.append(double_sep)
-    lines.append("  Generated by Follow Builders 每日简报")
-    lines.append(double_sep)
-
+    lines.extend([double_sep, "  Generated by VC 每日简报", double_sep])
     return "\n".join(lines)
-
 
 def send_gmail(subject, body):
     msg = MIMEMultipart("alternative")
@@ -482,7 +525,6 @@ def send_gmail(subject, body):
         server.sendmail(GMAIL_USER, RECIPIENTS, msg.as_string())
     print(f"Email sent to {len(RECIPIENTS)} recipients: {', '.join(RECIPIENTS)}", file=sys.stderr)
 
-
 # ── Main ───────────────────────────────────────────────────────────────────
 
 def main():
@@ -491,10 +533,10 @@ def main():
         sys.exit(0)
 
     today = datetime.now(BJT).strftime("%Y-%m-%d")
-    lookback_hours = 24
+    lookback_hours = 72
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
 
-    # 1. Podcasts
+    # Podcasts
     print("Fetching podcast feed...", file=sys.stderr)
     all_podcasts = fetch_podcast_feed()
     podcasts = []
@@ -511,7 +553,7 @@ def main():
     podcasts.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
     print(f"  {len(podcasts)} podcasts", file=sys.stderr)
 
-    # 2. RSS sections
+    # RSS sections
     print("Fetching funding news...", file=sys.stderr)
     funding_entries = fetch_rss_entries(FUNDING_SOURCES, cutoff)
     print(f"  {len(funding_entries)} funding articles", file=sys.stderr)
@@ -528,42 +570,36 @@ def main():
     blogs = fetch_rss_entries(BLOG_SOURCES, cutoff)
     print(f"  {len(blogs)} blog posts", file=sys.stderr)
 
-    # 3. Scrape VC blogs (HTML)
-    print("Scraping VC blog pages...", file=sys.stderr)
-    vc_text = scrape_vc_blogs(lookback_hours)
-    print("  ✓ VC blogs scraped and analyzed", file=sys.stderr)
+    # VC content (multi-tier)
+    print("Fetching VC content (multi-tier)...", file=sys.stderr)
+    vc_entries = fetch_all_vc_content(cutoff)
+    print(f"  Total: {len(vc_entries)} VC items", file=sys.stderr)
 
-    # 4. Gemini summaries
+    # Gemini analysis
     print("Generating AI analysis...", file=sys.stderr)
-
     funding_text = extract_funding_deals(funding_entries)
     print("  ✓ Funding deals", file=sys.stderr)
-
     tech_text = extract_tech_breakthroughs(tech_entries)
     print("  ✓ Tech breakthroughs", file=sys.stderr)
-
+    vc_text = summarize_vc_content(vc_entries)
+    print("  ✓ VC updates", file=sys.stderr)
     media_summaries = summarize_items(media_entries[:15], "科技媒体报道")
     print(f"  ✓ {len(media_summaries)} media summaries", file=sys.stderr)
-
     podcast_summaries = summarize_items(podcasts, "播客节目（请根据标题和嘉宾信息推断内容）")
     print(f"  ✓ {len(podcast_summaries)} podcast summaries", file=sys.stderr)
-
     blog_summaries = summarize_items(blogs, "独立分析师/newsletter文章")
     print(f"  ✓ {len(blog_summaries)} blog summaries", file=sys.stderr)
 
-    # 5. Format and send
+    # Send
     body = format_briefing(
         funding_text, tech_text, vc_text,
         media_entries[:15], media_summaries,
-        podcasts, podcast_summaries,
-        blogs, blog_summaries,
+        podcasts, podcast_summaries, blogs, blog_summaries,
     )
-    total = len(media_entries[:15]) + len(podcasts) + len(blogs)
+    total = len(vc_entries) + len(media_entries[:15]) + len(podcasts) + len(blogs)
     subject = f"📋 每日简报 — {today}（{total}+ 条更新）"
-
     print(f"Sending: {subject}", file=sys.stderr)
     send_gmail(subject, body)
-
 
 if __name__ == "__main__":
     main()
