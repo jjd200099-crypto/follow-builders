@@ -1,35 +1,81 @@
 {
-  "generatedAt": "2026-03-21T06:56:37.212Z",
+  "generatedAt": "2026-03-22T07:00:51.705Z",
   "lookbackHours": 72,
   "podcasts": [
     {
       "source": "podcast",
+      "name": "All-In Podcast",
+      "title": "Nvidia CEO Jensen Huang on the future of coding: “ Every engineer is going to have 100 agents.”",
+      "videoId": "4lWzqtNmolg",
+      "url": "https://youtube.com/watch?v=4lWzqtNmolg",
+      "publishedAt": "2026-03-21T22:30:00+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "No Priors",
+      "title": "Andrej Karpathy Automated His Home",
+      "videoId": "WhB2dfwVHsM",
+      "url": "https://youtube.com/watch?v=WhB2dfwVHsM",
+      "publishedAt": "2026-03-21T20:34:14+00:00"
+    },
+    {
+      "source": "podcast",
       "name": "Acquired",
-      "title": "Why does Red Bull have an F1 team?",
-      "videoId": "ktmh9M6N0Ic",
-      "url": "https://youtube.com/watch?v=ktmh9M6N0Ic",
-      "publishedAt": "2026-03-20T18:45:50+00:00"
+      "title": "Senna's death kicked off an era of safety reform in F1",
+      "videoId": "6vyuNDs9ZsI",
+      "url": "https://youtube.com/watch?v=6vyuNDs9ZsI",
+      "publishedAt": "2026-03-21T16:54:44+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "All-In Podcast",
+      "title": "&quot;TDS Rules the Democratic Party&quot; - Democratic Senator John Fetterman",
+      "videoId": "kajR-DiJMDI",
+      "url": "https://youtube.com/watch?v=kajR-DiJMDI",
+      "publishedAt": "2026-03-21T16:01:05+00:00"
     },
     {
       "source": "podcast",
       "name": "20VC",
-      "title": "What AI tools have you brought in this month?",
-      "videoId": "5eZV9vfks0g",
-      "url": "https://youtube.com/watch?v=5eZV9vfks0g",
-      "publishedAt": "2026-03-20T14:33:03+00:00"
+      "title": "Inside Figma's $1B ARR Machine",
+      "videoId": "XCFxqd8fgIA",
+      "url": "https://youtube.com/watch?v=XCFxqd8fgIA",
+      "publishedAt": "2026-03-21T15:01:13+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "20VC",
+      "title": "Inside Figma's $1B ARR Machine | Shaunt Voskanian",
+      "videoId": "5klhxOKZ_ag",
+      "url": "https://youtube.com/watch?v=5klhxOKZ_ag",
+      "publishedAt": "2026-03-21T14:57:17+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "All-In Podcast",
+      "title": "Jensen Huang: AI Robots is a 50 TRILLION DOLLAR industry",
+      "videoId": "KMCGRv1pM-c",
+      "url": "https://youtube.com/watch?v=KMCGRv1pM-c",
+      "publishedAt": "2026-03-20T23:00:33+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "Latent Space",
+      "title": "Dreamer: the Agent OS for Everyone — David Singleton",
+      "videoId": "TvmxWWfiYWI",
+      "url": "https://youtube.com/watch?v=TvmxWWfiYWI",
+      "publishedAt": "2026-03-20T17:28:53+00:00"
+    },
+    {
+      "source": "podcast",
+      "name": "No Priors",
+      "title": "Andrej Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI",
+      "videoId": "kwSVtQ7dziU",
+      "url": "https://youtube.com/watch?v=kwSVtQ7dziU",
+      "publishedAt": "2026-03-20T13:27:35+00:00"
     }
   ],
   "stats": {
-    "podcastEpisodes": 2
-  },
-  "errors": [
-    "RSS: Failed to fetch Latent Space: HTTP 404",
-    "RSS: Failed to fetch Training Data: HTTP 404",
-    "RSS: Failed to fetch No Priors: HTTP 404",
-    "RSS: Failed to fetch Unsupervised Learning: HTTP 404",
-    "RSS: Failed to fetch Data Driven NYC: HTTP 500",
-    "RSS: Failed to fetch All-In Podcast: HTTP 500",
-    "RSS: Failed to fetch BG2Pod: HTTP 404",
-    "RSS: Failed to fetch Invest Like the Best: HTTP 404"
-  ]
+    "podcastEpisodes": 9
+  }
 }
