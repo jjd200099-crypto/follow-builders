@@ -322,13 +322,21 @@ def gemini_call(prompt, max_tokens=8192):
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens},
     }).encode()
     req = Request(url, data=payload, headers={"Content-Type": "application/json"})
-    try:
-        with urlopen(req, timeout=90) as resp:
-            result = json.loads(resp.read())
-        return result["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"[WARN] Gemini error: {e}", file=sys.stderr)
-        return ""
+    for attempt in range(3):
+        try:
+            with urlopen(req, timeout=90) as resp:
+                result = json.loads(resp.read())
+            return result["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                import time
+                wait = 10 * (attempt + 1)
+                print(f"  Gemini rate limited, waiting {wait}s...", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            print(f"[WARN] Gemini error: {e}", file=sys.stderr)
+            return ""
+    return ""
 
 def extract_funding_deals(entries):
     if not entries:
@@ -533,7 +541,7 @@ def main():
         sys.exit(0)
 
     today = datetime.now(BJT).strftime("%Y-%m-%d")
-    lookback_hours = 72
+    lookback_hours = 24
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
 
     # Podcasts
