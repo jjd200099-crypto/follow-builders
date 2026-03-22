@@ -237,6 +237,7 @@ def fetch_vc_html(lookback_hours):
 ]
 
 如果没有找到近期文章，输出空数组 []
+直接输出JSON，不要任何开场白、确认语或解释。
 
 HTML 内容：
 {chr(10).join(pages_text)}"""
@@ -338,7 +339,7 @@ def extract_funding_deals(entries):
 发布时间：从原文推断
 原文：链接URL
 
-没有则输出"暂无融资交易"。"""
+没有则输出"暂无融资交易"。直接输出内容，不要任何开场白、确认语或解释。"""
     return gemini_call(prompt, 6144)
 
 def extract_tech_breakthroughs(entries):
@@ -362,7 +363,7 @@ def extract_tech_breakthroughs(entries):
 发布时间：从原文推断
 原文：链接URL
 
-没有则输出"暂无重大技术突破"。"""
+没有则输出"暂无重大技术突破"。直接输出内容，不要任何开场白、确认语或解释。"""
     return gemini_call(prompt, 6144)
 
 def summarize_vc_content(entries):
@@ -388,7 +389,8 @@ def summarize_vc_content(entries):
 要求：
 - 英文标题请翻译成中文
 - 重点提炼 VC 的独特观点和投资逻辑
-- 如涉及具体投资案例，注明金额和轮次"""
+- 如涉及具体投资案例，注明金额和轮次
+- 直接输出内容，不要任何开场白、确认语或解释"""
     return gemini_call(prompt, 6144)
 
 def summarize_items(entries, section_desc):
@@ -399,7 +401,7 @@ def summarize_items(entries, section_desc):
         f"你是一位资深的科技投资领域分析师。请为以下{section_desc}各写一段详细的中文摘要（4-6句话）。\n"
         f"摘要需包括：核心论点、关键数据或案例、对投资者/创业者/从业者的启示。\n"
         f"如果标题是英文，请翻译后再总结。\n\n"
-        + "\n".join(items) + "\n\n请严格按编号给出摘要：\n1. 摘要\n2. 摘要\n..."
+        + "\n".join(items) + "\n\n请严格按编号给出摘要，直接输出内容，不要任何开场白、确认语或解释：\n1. 摘要\n2. 摘要\n..."
     )
     text = gemini_call(prompt, 6144)
     if not text:
@@ -411,10 +413,16 @@ def summarize_items(entries, section_desc):
 
 # ── Email ──────────────────────────────────────────────────────────────────
 
-def format_item(idx, entry, summary=None):
+def format_item(idx, entry, summary=None, is_podcast=False):
     lines = []
     source = entry.get("source", entry.get("name", ""))
-    lines.append(f"  {idx}. [{source}] {entry.get('title', 'Untitled')}")
+    title = entry.get("title", "Untitled")
+    if is_podcast:
+        # Podcast: show podcast name prominently first
+        lines.append(f"  {idx}. 🎧 {source}")
+        lines.append(f"     {title}")
+    else:
+        lines.append(f"  {idx}. [{source}] {title}")
     lines.append(f"     🕐 {entry.get('publishedAt', '')[:16].replace('T', ' ')}")
     url = entry.get("url", "")
     if url:
@@ -433,15 +441,16 @@ def format_briefing(funding_text, tech_text, vc_text,
     for title, content in [("💰 融资头条", funding_text), ("🚀 技术突破", tech_text), ("🏛 湾区顶级 VC 动态", vc_text)]:
         L.extend([title, sep, "", content or f"  暂无", "", ""])
 
-    for emoji, label, items, sums in [
-        ("📡", "科技媒体更新", media, media_sum),
-        ("🎙", "播客追踪", podcasts, pod_sum),
-        ("📰", "行业资讯", blogs, blog_sum),
+    for emoji, label, items, sums, podcast_flag in [
+        ("📡", "科技媒体更新", media, media_sum, False),
+        ("🎙", "播客追踪", podcasts, pod_sum, True),
+        ("📰", "行业资讯", blogs, blog_sum, False),
     ]:
-        L.extend([f"{emoji} {label}（{len(items)} 篇）", sep, ""])
+        unit = "期" if podcast_flag else "篇"
+        L.extend([f"{emoji} {label}（{len(items)} {unit}）", sep, ""])
         if items:
             for i, e in enumerate(items):
-                L.extend(format_item(i + 1, e, sums.get(i)))
+                L.extend(format_item(i + 1, e, sums.get(i), is_podcast=podcast_flag))
         else:
             L.extend([f"  暂无{label}", ""])
         L.append("")
