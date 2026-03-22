@@ -80,7 +80,7 @@ BLOG_SOURCES = [
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-RECIPIENT = os.environ.get("RECIPIENT_EMAIL", "jjd200099@gmail.com")
+RECIPIENTS = [e.strip() for e in os.environ.get("RECIPIENT_EMAIL", "jjd200099@gmail.com").split(",") if e.strip()]
 BJT = timezone(timedelta(hours=8))
 
 # ── HTTP ────────────────────────────────────────────────────────────────────
@@ -474,13 +474,13 @@ def format_briefing(funding_text, tech_text, vc_text,
 def send_gmail(subject, body):
     msg = MIMEMultipart("alternative")
     msg["From"] = f"每日简报 <{GMAIL_USER}>"
-    msg["To"] = RECIPIENT
+    msg["To"] = ", ".join(RECIPIENTS)
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain", "utf-8"))
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, RECIPIENT, msg.as_string())
-    print(f"Email sent to {RECIPIENT}", file=sys.stderr)
+        server.sendmail(GMAIL_USER, RECIPIENTS, msg.as_string())
+    print(f"Email sent to {len(RECIPIENTS)} recipients: {', '.join(RECIPIENTS)}", file=sys.stderr)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────
@@ -491,7 +491,7 @@ def main():
         sys.exit(0)
 
     today = datetime.now(BJT).strftime("%Y-%m-%d")
-    lookback_hours = 72
+    lookback_hours = 24
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
 
     # 1. Podcasts
