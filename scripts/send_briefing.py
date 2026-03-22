@@ -415,11 +415,11 @@ def summarize_items(entries, section_desc):
 
 def format_item(idx, entry, summary=None, is_podcast=False):
     lines = []
-    source = entry.get("source", entry.get("name", ""))
     title = entry.get("title", "Untitled")
     if is_podcast:
-        # Podcast: show podcast name prominently first
-        lines.append(f"  {idx}. 🎧 {source}")
+        # Podcast: "name" has the channel name, "source" is just "podcast"
+        channel = entry.get("name", entry.get("source", ""))
+        lines.append(f"  {idx}. 🎧 {channel}")
         lines.append(f"     {title}")
     else:
         lines.append(f"  {idx}. [{source}] {title}")
