@@ -422,6 +422,7 @@ def format_item(idx, entry, summary=None, is_podcast=False):
         lines.append(f"  {idx}. 🎧 {channel}")
         lines.append(f"     {title}")
     else:
+        source = entry.get("source", entry.get("name", ""))
         lines.append(f"  {idx}. [{source}] {title}")
     lines.append(f"     🕐 {entry.get('publishedAt', '')[:16].replace('T', ' ')}")
     url = entry.get("url", "")
